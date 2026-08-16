@@ -4,9 +4,11 @@
 
 A aplicação conta com uma interface moderna no estilo AMOLED Dark, com efeitos de desfoque translúcido (Glassmorphism), transições fluidas e um design de ponta.
 
----
+
 
 ## 🚀 Principais Funcionalidades
+
+![](https://github.com/xkjhon/myFeed/blob/master/web/my.png)
 
 ### 📰 1. Feed Personalizado Dinâmico (myFeed)
 * **Visualização Unificada**: Um feed responsivo contendo os 3 últimos jogos e as 3 últimas notícias em destaque.
@@ -89,3 +91,4 @@ A aplicação conta com uma interface moderna no estilo AMOLED Dark, com efeitos
    ```bash
    flutter build ipa --release
    ```
+
