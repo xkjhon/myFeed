@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Futebol Notícias - Modo Carreira</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            appDark: '#000000',
+            appCard: '#000000',
+            appInput: '#0d0d0d',
+            appBorder: '#1c1c1e'
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Dexie.js (IndexedDB wrapper) & html2canvas -->
+  <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,600;0,800;0,900;1,700;1,900&display=swap');
+    
+    * {
+      font-family: 'Montserrat', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    input, textarea, select {
+      user-select: text;
+    }
+
+    /* Esconder scrollbar mantendo navegação */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    .app-container {
+      max-width: 480px;
+      min-height: 100vh;
+      margin: 0 auto;
+      background-color: #000000;
+      color: #ffffff;
+      position: relative;
+    }
+
+    @keyframes pageFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .tela-animate {
+      animation: pageFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="bg-black text-white antialiased">
+
+<div class="app-container flex flex-col justify-between shadow-2xl relative overflow-x-hidden min-h-screen">
+
+  <!-- ================= MENU DROPDOWN (PUSH-DOWN EFFECT) ================= -->
+  <header id="menu-dropdown" class="transition-all duration-300 ease-in-out max-h-0 overflow-hidden bg-black border-b border-appBorder z-50">
+    <div class="p-6">
+      <div class="flex items-baseline justify-between mb-4">
+        <h2 class="text-3xl font-black italic tracking-tighter">Menu</h2>
+        <button onclick="toggleMenu()" class="text-gray-400 text-sm hover:text-white font-semibold">Voltar</button>
+      </div>
+      <ul class="flex flex-col gap-4 text-lg font-bold italic">
+        <li>
+          <button onclick="abrirCriador('jogo'); toggleMenu();" class="text-left w-full text-white hover:text-gray-300 flex items-center gap-2">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+            Criar uma Entrada
+          </button>
+        </li>
+        <li>
+          <button onclick="navegarPara('tela-home'); toggleMenu();" class="text-left w-full text-white hover:text-gray-300 flex items-center gap-2">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+            Ver todos os Jogos
+          </button>
+        </li>
+        <li>
+          <button onclick="abrirGerenciar(); toggleMenu();" class="text-left w-full text-white hover:text-gray-300 flex items-center gap-2">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            Gerenciar Times e Comps
+          </button>
+        </li>
+        <li>
+          <button onclick="exportarBackup()" class="text-left w-full text-gray-400 hover:text-white text-sm not-italic flex items-center gap-2">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Exportar Backup (JSON)
+          </button>
+        </li>
+        <li>
+          <label class="text-left w-full text-gray-400 hover:text-white text-sm not-italic cursor-pointer flex items-center gap-2">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+            <span>Importar Backup</span>
+            <input type="file" accept=".json" onchange="importarBackup(event)" class="hidden" />
+          </label>
+        </li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- ================= TELA 1: HOME FEED ================= -->
+  <main id="tela-home" class="tela active flex-1 pb-12">
+    <!-- Hero / Topo Jogo Destaque -->
+    <div class="relative w-full aspect-[4/5] bg-neutral-900 overflow-hidden">
+      <img id="home-destaque-img" src="https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800" class="w-full h-full object-cover" alt="Jogo Destaque" />
+      
+      <!-- Degradê inferior -->
+      <div class="absolute inset-0 bg-gradient-to-t from-appDark via-appDark/40 to-transparent"></div>
+
+      <!-- Botão Hambúrguer Flutuante -->
+      <button onclick="toggleMenu()" class="absolute top-5 left-5 z-20 w-12 h-12 bg-black/60 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 active:scale-95 transition">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path>
+        </svg>
+      </button>
+
+      <!-- Placar e Detalhes Hero -->
+      <div class="absolute bottom-6 left-0 right-0 px-6 flex flex-col items-center text-center z-10 cursor-pointer" onclick="abrirDetalheJogoAtual()">
+        <div class="flex items-center justify-center gap-6 mb-2">
+          <img id="home-mandante-logo" src="" class="w-12 h-12 object-contain drop-shadow-md" />
+          <div class="flex items-center gap-3 text-3xl font-black tracking-wider">
+            <span id="home-placar-m">0</span>
+            <span class="text-sm font-bold text-gray-400">x</span>
+            <span id="home-placar-v">0</span>
+          </div>
+          <img id="home-visitante-logo" src="" class="w-12 h-12 object-contain drop-shadow-md" />
+        </div>
+
+        <h1 id="home-destaque-titulo" class="text-3xl font-black italic tracking-tight text-white uppercase drop-shadow-lg">
+          Sem Jogos
+        </h1>
+        <p id="home-destaque-sub" class="text-xs text-gray-300 mt-1 font-medium line-clamp-1">
+          Cadastre uma partida no menu
+        </p>
+      </div>
+    </div>
+
+    <!-- Seção Mais Jogos -->
+    <section class="px-5 mt-6">
+      <div class="flex justify-between items-baseline mb-4">
+        <h2 class="text-2xl font-black italic tracking-tighter">Mais Jogos</h2>
+        <button onclick="alert('Histórico completo em breve!')" class="text-xs text-gray-400 hover:text-white font-semibold">Ver mais &gt;</button>
+      </div>
+      <div id="lista-mais-jogos" class="flex flex-col gap-4">
+        <!-- Injetado via JS -->
+      </div>
+    </section>
+
+    <!-- Seção Notícias de Última Hora -->
+    <section class="px-5 mt-8">
+      <div class="flex justify-between items-baseline mb-4">
+        <h2 class="text-2xl font-black italic tracking-tighter">Noticias de Ultima Hora</h2>
+        <button onclick="alert('Feed completo em breve!')" class="text-xs text-gray-400 hover:text-white font-semibold">Ver mais &gt;</button>
+      </div>
+      <div id="carrossel-noticias" class="flex gap-4 overflow-x-auto no-scrollbar pb-4">
+        <!-- Injetado via JS -->
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= TELA 2: DETALHES DO JOGO ================= -->
+  <section id="tela-jogo" class="tela hidden flex-1 pb-10">
+    <div id="jogo-export-card">
+      <!-- Header com cor customizada do clube -->
+      <div id="jogo-header-bg" class="pt-6 pb-6 px-5 transition-colors duration-300">
+        <div class="flex items-center justify-between mb-4">
+          <button onclick="history.back()" class="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center text-white backdrop-blur-md">
+            ❮
+          </button>
+          <h3 class="text-xl font-black italic">Ultimo Jogo</h3>
+          <div class="flex gap-2">
+            <button onclick="editarJogoAtual()" class="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center text-white backdrop-blur-md hover:bg-neutral-800 transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-2.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+            </button>
+            <button onclick="excluirJogoAtual()" class="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center text-white backdrop-blur-md hover:bg-red-950/80 hover:text-red-400 transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-center gap-6 py-2">
+          <img id="jogo-m-logo" class="w-16 h-16 object-contain drop-shadow" />
+          <div class="flex items-center gap-3 text-4xl font-black tracking-wider">
+            <span id="jogo-m-placar">0</span>
+            <span class="text-base text-gray-300">x</span>
+            <span id="jogo-v-placar">0</span>
+          </div>
+          <img id="jogo-v-logo" class="w-16 h-16 object-contain drop-shadow" />
+        </div>
+      </div>
+
+      <!-- Carrossel de Fotos do Jogo -->
+      <div class="relative w-full aspect-video bg-black overflow-hidden">
+        <div id="jogo-fotos-container" class="flex h-full overflow-x-auto no-scrollbar snap-x snap-mandatory">
+          <!-- Imagens injetadas via JS -->
+        </div>
+      </div>
+
+      <!-- Manchete e Resumo -->
+      <div class="px-5 py-5 text-center bg-appDark">
+        <h1 id="jogo-titulo" class="text-3xl font-black italic text-white uppercase tracking-tight">Manchete</h1>
+        <p id="jogo-texto" class="text-sm text-gray-300 mt-1 font-medium">Resumo do confronto</p>
+      </div>
+
+      <!-- Seção MVP / Melhor Jogador (Com Layering do Nome Atrás do PNG) -->
+      <div id="secao-mvp" class="relative w-full min-h-[380px] flex flex-col items-center justify-center bg-black overflow-hidden py-6">
+        <!-- Texto ATRÁS (Layer 1) -->
+        <h2 id="jogo-mvp-nome-bg" class="absolute z-0 text-5xl font-black italic text-white/90 text-center leading-none uppercase select-none px-4 break-words w-full">
+          JOGADOR
+        </h2>
+
+        <!-- Render PNG NA FRENTE (Layer 2) -->
+        <img id="jogo-mvp-foto" src="" class="relative z-10 max-h-72 object-contain pointer-events-none drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]" />
+
+        <!-- Descrição MVP -->
+        <div class="relative z-20 text-center mt-2 px-4">
+          <span class="text-sm font-black italic tracking-wide text-white uppercase block">Melhor Jogador em Campo</span>
+          <p id="jogo-mvp-just" class="text-xs text-gray-400 mt-0.5">Destaque da partida</p>
+        </div>
+      </div>
+
+      <!-- Linha do Tempo / Cronologia -->
+      <div class="px-6 py-6 bg-appDark border-t border-appBorder">
+        <div id="jogo-timeline" class="flex flex-col gap-2 font-bold text-sm">
+          <!-- Eventos Mandante (esquerda) e Visitante (direita) injetados via JS -->
+        </div>
+      </div>
+
+      <!-- Ficha Técnica (Mais Informações) -->
+      <div class="px-6 py-6 bg-appDark border-t border-appBorder">
+        <h4 class="text-xl font-black italic mb-4">Mais Informações</h4>
+        <div class="flex flex-col gap-3 text-right">
+          <div>
+            <span id="jogo-info-estadio" class="text-lg font-black block">Estádio</span>
+            <span class="text-xs text-gray-400 block -mt-1 font-semibold">Estadio</span>
+          </div>
+          <div>
+            <span id="jogo-info-comp" class="text-lg font-black block">Competição</span>
+            <span class="text-xs text-gray-400 block -mt-1 font-semibold">Competição</span>
+          </div>
+          <div>
+            <span id="jogo-info-fase" class="text-lg font-black block">Fase</span>
+            <span class="text-xs text-gray-400 block -mt-1 font-semibold">Fase</span>
+          </div>
+          <div>
+            <span id="jogo-info-juiz" class="text-lg font-black block">Árbitro</span>
+            <span class="text-xs text-gray-400 block -mt-1 font-semibold">Juiz</span>
+          </div>
+          <div>
+            <span id="jogo-info-transmissao" class="text-lg font-black block">Transmissão</span>
+            <span class="text-xs text-gray-400 block -mt-1 font-semibold">Transmissão</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Botão de Download de Card -->
+    <div class="p-6 bg-appDark flex justify-center">
+      <button onclick="salvarCardImagem('jogo-export-card')" class="w-full max-w-xs py-4 bg-white text-black font-black italic rounded-full uppercase tracking-wider text-sm shadow-xl active:scale-95 transition flex items-center justify-center gap-2">
+        <svg class="w-5 h-5 text-black" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Salvar Card na Galeria
+      </button>
+    </div>
+  </section>
+
+  <!-- ================= TELA 3: PÁGINA DA NOTÍCIA ================= -->
+  <section id="tela-noticia" class="tela hidden flex-1 pb-10">
+    <div class="pt-6 pb-4 px-5 bg-gradient-to-b from-emerald-950 to-appDark">
+      <div class="flex items-center justify-between mb-4">
+        <button onclick="history.back()" class="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center text-white backdrop-blur-md">
+          ❮
+        </button>
+        <h3 class="text-xl font-black italic">Noticia</h3>
+        <div class="flex gap-2">
+          <button onclick="editarNoticiaAtual()" class="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center text-white backdrop-blur-md hover:bg-neutral-800 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-2.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+          </button>
+          <button onclick="excluirNoticiaAtual()" class="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center text-white backdrop-blur-md hover:bg-red-950/80 hover:text-red-400 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Card do Último Jogo Relacionado -->
+      <div id="noticia-jogo-relacionado" class="bg-black/60 border border-white/10 rounded-2xl p-4 mb-3 cursor-pointer" onclick="abrirJogoRelacionadoDaNoticia()">
+        <span class="text-xs font-black italic text-gray-300 block mb-2">Ultimo Jogo Relacionado</span>
+        <div class="flex items-center gap-3">
+          <img id="noticia-rel-m-logo" class="w-6 h-6 object-contain" />
+          <span class="text-sm font-black"><span id="noticia-rel-placar">0 x 0</span></span>
+          <img id="noticia-rel-v-logo" class="w-6 h-6 object-contain" />
+        </div>
+        <p id="noticia-rel-titulo" class="text-sm font-black italic mt-2 text-white">Título do Jogo</p>
+        <span class="text-[10px] text-gray-400 font-semibold">Saber mais &gt;</span>
+      </div>
+    </div>
+
+    <div class="w-full aspect-[16/10] bg-neutral-900 overflow-hidden">
+      <img id="noticia-foto-capa" class="w-full h-full object-cover" />
+    </div>
+
+    <div class="p-6 bg-appDark">
+      <h1 id="noticia-detalhe-titulo" class="text-3xl font-black italic text-white uppercase tracking-tight mb-4">
+        Título Notícia
+      </h1>
+      <p id="noticia-detalhe-texto" class="text-sm text-gray-300 leading-relaxed whitespace-pre-line font-medium">
+        Corpo da notícia completa...
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= TELA 4: CRIADOR (JOGO E NOTÍCIA) ================= -->
+  <section id="tela-criador" class="tela hidden flex-1 pb-12">
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-6">
+        <button onclick="history.back()" class="w-10 h-10 bg-appInput rounded-full flex items-center justify-center text-white">
+          ❮
+        </button>
+        <h2 id="criador-titulo" class="text-2xl font-black italic">Criador</h2>
+        <div class="w-10"></div>
+      </div>
+
+      <!-- Alternador de Tipo -->
+      <div class="grid grid-cols-2 gap-3 mb-6 bg-appInput p-1 rounded-2xl">
+        <button id="tab-btn-jogo" onclick="alternarTipoCriador('jogo')" class="py-3 rounded-xl font-black italic text-xs uppercase bg-white text-black transition">
+          Adicionar Jogo
+        </button>
+        <button id="tab-btn-noticia" onclick="alternarTipoCriador('noticia')" class="py-3 rounded-xl font-black italic text-xs uppercase text-gray-400 transition">
+          Adicionar Noticia
+        </button>
+      </div>
+
+      <!-- Formulário JOGO -->
+      <form id="form-jogo" onsubmit="salvarJogo(event)" class="flex flex-col gap-4">
+        <input type="hidden" id="input-j-id" />
+        <div>
+          <label class="text-xs font-bold text-gray-400 ml-1">Titulo</label>
+          <input id="input-j-titulo" required placeholder="Insira o seu titulo" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none focus:border-white" />
+        </div>
+
+        <div>
+          <label class="text-xs font-bold text-gray-400 ml-1">Texto (Resumo)</label>
+          <textarea id="input-j-texto" required placeholder="Insira o seu texto" rows="2" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none focus:border-white"></textarea>
+        </div>
+
+        <div>
+          <label class="text-xs font-bold text-gray-400 ml-1">Imagens Principais (Máx 6)</label>
+          <input type="file" id="input-j-fotos" multiple accept="image/*" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-3 text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-white file:text-black" />
+        </div>
+
+        <!-- Clubes e Placar -->
+        <div class="grid grid-cols-3 gap-2">
+          <div class="col-span-2">
+            <label class="text-xs font-bold text-gray-400 ml-1">Time Local</label>
+            <select id="select-j-time-m" required onchange="verificarNovoTime(this)" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none"></select>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-gray-400 ml-1">Placar</label>
+            <input type="number" id="input-j-placar-m" required placeholder="Ex. 1" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2">
+          <div class="col-span-2">
+            <label class="text-xs font-bold text-gray-400 ml-1">Time Visitante</label>
+            <select id="select-j-time-v" required onchange="verificarNovoTime(this)" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none"></select>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-gray-400 ml-1">Placar</label>
+            <input type="number" id="input-j-placar-v" required placeholder="Ex. 1" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none" />
+          </div>
+        </div>
+
+        <!-- MVP -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-bold text-gray-400 ml-1">Jogador Destaque</label>
+            <input id="input-j-mvp-nome" placeholder="Nome do Jogador" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none" />
+          </div>
+          <div>
+            <label class="text-xs font-bold text-gray-400 ml-1">Foto (.PNG sem fundo)</label>
+            <input type="file" id="input-j-mvp-foto" accept="image/png" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-3 text-[10px] text-gray-400 file:hidden" />
+          </div>
+        </div>
+        <div>
+          <label class="text-xs font-bold text-gray-400 ml-1">Jogador Destaque Just.</label>
+          <input id="input-j-mvp-just" placeholder="Insira a Justificativa" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none" />
+        </div>
+
+        <!-- Ficha Técnica -->
+        <div>
+          <label class="text-xs font-bold text-gray-400 ml-1">Estadio</label>
+          <input id="input-j-estadio" placeholder="Insira o seu estádio" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-bold text-gray-400 ml-1">Competição</label>
+            <select id="select-j-comp" onchange="verificarNovaComp(this)" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none"></select>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-gray-400 ml-1">Fase</label>
+            <input id="input-j-fase" placeholder="Ex: Semifinal Ida" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-bold text-gray-400 ml-1">Juiz</label>
+            <input id="input-j-juiz" placeholder="Nome do árbitro" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none" />
+          </div>
+          <div>
+            <label class="text-xs font-bold text-gray-400 ml-1">Transmissão</label>
+            <input id="input-j-transmissao" placeholder="Ex: Caze TV" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none" />
+          </div>
+        </div>
+
+        <!-- Cronologia de Eventos -->
+        <div class="bg-appInput border border-appBorder p-4 rounded-2xl">
+          <label class="text-xs font-black italic uppercase text-gray-300 block mb-3">Cronologia</label>
+          <div class="grid grid-cols-4 gap-2 mb-2">
+            <input id="input-ev-jogador" placeholder="Jogador" class="col-span-2 bg-appDark border border-appBorder rounded-xl p-2 text-xs" />
+            <input id="input-ev-minuto" placeholder="Ex. 50'" class="bg-appDark border border-appBorder rounded-xl p-2 text-xs" />
+            <select id="select-ev-lado" class="bg-appDark border border-appBorder rounded-xl p-2 text-xs font-bold">
+              <option value="mandante">Local</option>
+              <option value="visitante">Visitante</option>
+            </select>
+          </div>
+          <div class="flex gap-2">
+            <select id="select-ev-tipo" class="flex-1 bg-appDark border border-appBorder rounded-xl p-2 text-xs font-bold">
+              <option value="Gol">Gol</option>
+              <option value="Vermelho">Vermelho</option>
+              <option value="Amarelo">Amarelo</option>
+            </select>
+            <button type="button" onclick="adicionarEventoLista()" class="px-5 bg-white text-black font-black rounded-xl text-lg">+</button>
+          </div>
+          <div id="lista-temp-eventos" class="mt-3 flex flex-col gap-1 text-xs text-gray-400">
+            <span>• Pontapé Inicial 1'</span>
+          </div>
+        </div>
+
+        <button type="submit" class="w-full py-4 mt-4 bg-white text-black font-black italic rounded-2xl uppercase tracking-wider text-base active:scale-95 transition shadow-lg">
+          Salvar
+        </button>
+      </form>
+
+      <!-- Formulário NOTÍCIA -->
+      <form id="form-noticia" onsubmit="salvarNoticia(event)" class="hidden flex-col gap-4">
+        <input type="hidden" id="input-n-id" />
+        <div>
+          <label class="text-xs font-bold text-gray-400 ml-1">Titulo</label>
+          <input id="input-n-titulo" required placeholder="Insira o seu titulo" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none" />
+        </div>
+
+        <div>
+          <label class="text-xs font-bold text-gray-400 ml-1">Texto Curto (Só aparecerá na tela inicial)</label>
+          <input id="input-n-resumo" required placeholder="Insira o seu texto de cabeçalho" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none" />
+        </div>
+
+        <div>
+          <label class="text-xs font-bold text-gray-400 ml-1">Texto Completo</label>
+          <textarea id="input-n-corpo" required rows="5" placeholder="Insira o seu texto" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none"></textarea>
+        </div>
+
+        <div>
+          <label class="text-xs font-bold text-gray-400 ml-1">Imagem Principal</label>
+          <input type="file" id="input-n-foto" accept="image/*" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-3 text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-white file:text-black" />
+        </div>
+
+        <div>
+          <label class="text-xs font-bold text-gray-400 ml-1">Time Relacionado</label>
+          <select id="select-n-time" required class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-4 text-sm font-semibold outline-none"></select>
+        </div>
+
+        <button type="submit" class="w-full py-4 mt-4 bg-white text-black font-black italic rounded-2xl uppercase tracking-wider text-base active:scale-95 transition shadow-lg">
+          Salvar
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ================= MODAL: CRIADOR DE TIME ================= -->
+  <div id="modal-time" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
+    <div class="bg-appDark border border-appBorder rounded-3xl w-full max-w-sm p-6 relative">
+      <button onclick="fecharModal('modal-time')" class="absolute top-5 left-5 w-8 h-8 bg-appInput rounded-full flex items-center justify-center text-white text-xs">❮</button>
+      <h3 class="text-xl font-black italic text-center mb-6">Criador de Time</h3>
+      
+      <form onsubmit="cadastrarTime(event)" class="flex flex-col gap-4">
+        <input type="hidden" id="modal-t-id" />
+        <div>
+          <label class="text-xs font-bold text-gray-400">Nome</label>
+          <input id="modal-t-nome" required placeholder="Insira o seu time" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-3.5 text-sm font-semibold outline-none" />
+        </div>
+        <div>
+          <label class="text-xs font-bold text-gray-400">Escudo do Time</label>
+          <div class="flex flex-col gap-2 mt-1">
+            <input type="file" id="modal-t-escudo-file" accept="image/*, .svg" class="w-full bg-appInput border border-appBorder rounded-2xl p-3 text-xs text-gray-400 file:mr-4 file:py-1 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-white file:text-black" />
+            <div class="text-center text-xs text-gray-500 font-bold">ou</div>
+            <input id="modal-t-escudo-url" placeholder="Link da imagem (URL)" class="w-full bg-appInput border border-appBorder rounded-2xl p-3.5 text-sm font-semibold outline-none" />
+          </div>
+        </div>
+        <div class="flex items-center gap-3 bg-appInput border border-appBorder rounded-2xl p-3">
+          <label class="text-xs font-bold text-gray-400 flex-1">Cor do Clube (Tema)</label>
+          <input type="color" id="modal-t-cor" value="#1e3a8a" class="w-10 h-10 rounded-xl bg-transparent cursor-pointer" />
+        </div>
+        <div>
+          <label class="text-xs font-bold text-gray-400">País de Origem</label>
+          <select id="modal-t-pais" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-3.5 text-sm font-semibold outline-none">
+            <option value="Brasil">Brasil</option>
+            <option value="Argentina">Argentina</option>
+            <option value="Inglaterra">Inglaterra</option>
+            <option value="Espanha">Espanha</option>
+            <option value="Itália">Itália</option>
+            <option value="Alemanha">Alemanha</option>
+          </select>
+        </div>
+        <button type="submit" class="w-full py-4 mt-2 bg-white text-black font-black italic rounded-2xl uppercase tracking-wider text-sm">Adicionar Time</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: CRIADOR DE COMPETIÇÃO ================= -->
+  <div id="modal-comp" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-6">
+    <div class="bg-appDark border border-appBorder rounded-3xl w-full max-w-sm p-6 relative">
+      <button onclick="fecharModal('modal-comp')" class="absolute top-5 left-5 w-8 h-8 bg-appInput rounded-full flex items-center justify-center text-white text-xs">❮</button>
+      <h3 class="text-xl font-black italic text-center mb-6">Criador de Comp.</h3>
+      
+      <form onsubmit="cadastrarComp(event)" class="flex flex-col gap-4">
+        <input type="hidden" id="modal-c-id" />
+        <div>
+          <label class="text-xs font-bold text-gray-400">Nome</label>
+          <input id="modal-c-nome" required placeholder="Insira o da sua Competição" class="w-full mt-1 bg-appInput border border-appBorder rounded-2xl p-3.5 text-sm font-semibold outline-none" />
+        </div>
+        <div>
+          <label class="text-xs font-bold text-gray-400">Logo da Competição</label>
+          <div class="flex flex-col gap-2 mt-1">
+            <input type="file" id="modal-c-logo-file" accept="image/*, .svg" class="w-full bg-appInput border border-appBorder rounded-2xl p-3 text-xs text-gray-400 file:mr-4 file:py-1 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-white file:text-black" />
+            <div class="text-center text-xs text-gray-500 font-bold">ou</div>
+            <input id="modal-c-logo-url" placeholder="Link da imagem (URL)" class="w-full bg-appInput border border-appBorder rounded-2xl p-3.5 text-sm font-semibold outline-none" />
+          </div>
+        </div>
+        <button type="submit" class="w-full py-4 mt-2 bg-white text-black font-black italic rounded-2xl uppercase tracking-wider text-sm">Adicionar Comp.</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= TELA 5: GERENCIAR TIMES E COMPETIÇÕES ================= -->
+  <section id="tela-gerenciar" class="tela hidden flex-1 pb-12">
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-6">
+        <button onclick="history.back()" class="w-10 h-10 bg-appInput rounded-full flex items-center justify-center text-white">
+          ❮
+        </button>
+        <h2 class="text-2xl font-black italic">Gerenciar</h2>
+        <div class="w-10"></div>
+      </div>
+
+      <!-- Alternador de Tipo Gerenciar -->
+      <div class="grid grid-cols-2 gap-3 mb-6 bg-appInput p-1 rounded-2xl">
+        <button id="tab-gerenciar-times" onclick="alternarTabGerenciar('times')" class="py-3 rounded-xl font-black italic text-xs uppercase bg-white text-black transition">
+          Times
+        </button>
+        <button id="tab-gerenciar-comps" onclick="alternarTabGerenciar('comps')" class="py-3 rounded-xl font-black italic text-xs uppercase text-gray-400 transition">
+          Competições
+        </button>
+      </div>
+
+      <!-- Seção Times -->
+      <div id="gerenciar-times-list" class="flex flex-col gap-3">
+        <!-- Injetado via JS -->
+      </div>
+
+      <!-- Seção Competições -->
+      <div id="gerenciar-comps-list" class="hidden flex flex-col gap-3">
+        <!-- Injetado via JS -->
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ================= SCRIPT & BANCO DE DADOS (INDEXEDDB) ================= -->
+<script>
+  // Inicialização do Banco de Dados Offline Dexie
+  const db = new Dexie('FifaCarreiraNewsDB');
+  db.version(1).stores({
+    times: '++id, nome, escudo, cor, pais',
+    competicoes: '++id, nome, logo',
+    jogos: '++id, titulo, data, timeMandanteId, timeVisitanteId',
+    noticias: '++id, titulo, data, timeRelacionadoId'
+  });
+
+  let eventosTemp = [];
+  let jogoAtualVisualizado = null;
+
+  // Carregar dados de fábrica (Seed inicial)
+  async function seedDatabase() {
+    const totalTimes = await db.times.count();
+    if (totalTimes === 0) {
+      await db.times.bulkAdd([
+        { nome: 'Boca Juniors', escudo: 'https://upload.wikimedia.org/wikipedia/commons/4/41/CABJ70.png', cor: '#0c2340', pais: 'Argentina' },
+        { nome: 'River Plate', escudo: 'https://upload.wikimedia.org/wikipedia/commons/a/ac/Escudo_del_C_A_River_Plate.svg', cor: '#d90429', pais: 'Argentina' },
+        { nome: 'Flamengo', escudo: 'https://upload.wikimedia.org/wikipedia/commons/2/2e/Flamengo_braz_logo.svg', cor: '#c1121f', pais: 'Brasil' },
+        { nome: 'Corinthians', escudo: 'https://upload.wikimedia.org/wikipedia/pt/b/b4/Sport_Club_Corinthians_Paulista_licenciado.png', cor: '#111111', pais: 'Brasil' },
+        { nome: 'Goiás', escudo: 'https://upload.wikimedia.org/wikipedia/commons/a/ae/Goias_Esporte_Clube_logo.svg', cor: '#005a36', pais: 'Brasil' }
+      ]);
+      await db.competicoes.bulkAdd([
+        { nome: 'Conmebol Libertadores', logo: '' },
+        { nome: 'Brasileirão Série A', logo: '' }
+      ]);
+    }
+    atualizarSelects();
+    renderizarHome();
+  }
+
+  // Navegação entre telas com suporte a histórico
+  function navegarPara(telaId, pushHistory = true) {
+    document.querySelectorAll('.tela').forEach(el => {
+      el.classList.add('hidden');
+      el.classList.remove('tela-animate');
+    });
+    const target = document.getElementById(telaId);
+    if (target) {
+      target.classList.remove('hidden');
+      void target.offsetWidth; // Força reflow para reiniciar a animação
+      target.classList.add('tela-animate');
+    }
+    if (pushHistory) {
+      history.pushState({ tela: telaId }, '', '#' + telaId);
+    }
+    window.scrollTo(0, 0);
+  }
+
+  function toggleMenu() {
+    const menu = document.getElementById('menu-dropdown');
+    menu.classList.toggle('max-h-0');
+    menu.classList.toggle('max-h-[500px]');
+  }
+
+  function abrirCriador(tipo) {
+    // Reset edit state
+    document.getElementById('input-n-id').value = '';
+    document.getElementById('input-j-id').value = '';
+    document.getElementById('form-noticia').reset();
+    document.getElementById('input-j-titulo').value = ''; 
+    document.getElementById('form-jogo').reset();
+    eventosTemp = [];
+    document.getElementById('lista-temp-eventos').innerHTML = '<span>• Pontapé Inicial 1\'</span>';
+    
+    document.getElementById('criador-titulo').innerText = "Criador";
+    const tabsContainer = document.querySelector('#tela-criador .bg-appInput');
+    if (tabsContainer) tabsContainer.classList.remove('hidden');
+    
+    navegarPara('tela-criador');
+    alternarTipoCriador(tipo);
+  }
+
+  function alternarTipoCriador(tipo) {
+    const btnJ = document.getElementById('tab-btn-jogo');
+    const btnN = document.getElementById('tab-btn-noticia');
+    const formJ = document.getElementById('form-jogo');
+    const formN = document.getElementById('form-noticia');
+
+    if (tipo === 'jogo') {
+      btnJ.className = "py-3 rounded-xl font-black italic text-xs uppercase bg-white text-black transition";
+      btnN.className = "py-3 rounded-xl font-black italic text-xs uppercase text-gray-400 transition";
+      formJ.classList.remove('hidden');
+      formN.classList.add('hidden');
+    } else {
+      btnN.className = "py-3 rounded-xl font-black italic text-xs uppercase bg-white text-black transition";
+      btnJ.className = "py-3 rounded-xl font-black italic text-xs uppercase text-gray-400 transition";
+      formN.classList.remove('hidden');
+      formJ.classList.add('hidden');
+    }
+  }
+
+  // Atualiza os Dropdowns de seleção
+  async function atualizarSelects() {
+    const times = await db.times.toArray();
+    const comps = await db.competicoes.toArray();
+
+    const optionsTimes = '<option value="">Selecione um time</option>' + 
+      times.map(t => `<option value="${t.id}">${t.nome}</option>`).join('') +
+      '<option value="NOVO">+ Criar Novo Time...</option>';
+
+    document.getElementById('select-j-time-m').innerHTML = optionsTimes;
+    document.getElementById('select-j-time-v').innerHTML = optionsTimes;
+    document.getElementById('select-n-time').innerHTML = optionsTimes;
+
+    const optionsComps = '<option value="">Selecione a competição</option>' + 
+      comps.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('') +
+      '<option value="NOVO">+ Criar Nova Competição...</option>';
+
+    document.getElementById('select-j-comp').innerHTML = optionsComps;
+  }
+
+  function verificarNovoTime(select) {
+    if (select.value === 'NOVO') {
+      document.getElementById('modal-t-id').value = '';
+      document.getElementById('modal-t-nome').value = '';
+      document.getElementById('modal-t-escudo-url').value = '';
+      document.getElementById('modal-t-escudo-file').value = '';
+      document.getElementById('modal-t-cor').value = '#1e3a8a';
+      document.getElementById('modal-t-pais').value = 'Brasil';
+      
+      const modalForm = document.querySelector('#modal-time form');
+      const submitBtn = modalForm.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.innerText = "Adicionar Time";
+      
+      const titleEl = document.querySelector('#modal-time h3');
+      if (titleEl) titleEl.innerText = "Criador de Time";
+
+      document.getElementById('modal-time').classList.remove('hidden');
+      select.value = '';
+    }
+  }
+
+  function verificarNovaComp(select) {
+    if (select.value === 'NOVO') {
+      document.getElementById('modal-c-id').value = '';
+      document.getElementById('modal-c-nome').value = '';
+      document.getElementById('modal-c-logo-url').value = '';
+      document.getElementById('modal-c-logo-file').value = '';
+      
+      const modalForm = document.querySelector('#modal-comp form');
+      const submitBtn = modalForm.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.innerText = "Adicionar Comp.";
+
+      const titleEl = document.querySelector('#modal-comp h3');
+      if (titleEl) titleEl.innerText = "Criador de Comp.";
+
+      document.getElementById('modal-comp').classList.remove('hidden');
+      select.value = '';
+    }
+  }
+
+  function fecharModal(modalId) {
+    document.getElementById(modalId).classList.add('hidden');
+  }
+
+  // Conversão de arquivo para Base64
+  const fileToBase64 = file => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+  });
+
+  // Cadastro de Time / Competição
+  async function cadastrarTime(e) {
+    e.preventDefault();
+    const id = document.getElementById('modal-t-id').value;
+    const nome = document.getElementById('modal-t-nome').value;
+    const cor = document.getElementById('modal-t-cor').value;
+    const pais = document.getElementById('modal-t-pais').value;
+    const fileInput = document.getElementById('modal-t-escudo-file').files[0];
+    const urlInput = document.getElementById('modal-t-escudo-url').value;
+
+    let escudo = '';
+    if (fileInput) {
+      escudo = await fileToBase64(fileInput);
+    } else if (urlInput) {
+      escudo = urlInput;
+    } else if (id) {
+      const oldTime = await db.times.get(Number(id));
+      if (oldTime) escudo = oldTime.escudo;
+    }
+
+    if (!escudo) {
+      alert('Por favor, envie um arquivo ou insira uma URL para o escudo.');
+      return;
+    }
+
+    const timeData = { nome, escudo, cor, pais };
+    if (id) {
+      await db.times.put({ id: Number(id), ...timeData });
+    } else {
+      await db.times.add(timeData);
+    }
+
+    fecharModal('modal-time');
+    e.target.reset();
+    atualizarSelects();
+    renderizarHome();
+    if (window.atualizarGerenciamento) window.atualizarGerenciamento();
+  }
+
+  async function cadastrarComp(e) {
+    e.preventDefault();
+    const id = document.getElementById('modal-c-id').value;
+    const nome = document.getElementById('modal-c-nome').value;
+    const fileInput = document.getElementById('modal-c-logo-file').files[0];
+    const urlInput = document.getElementById('modal-c-logo-url').value;
+
+    let logo = '';
+    if (fileInput) {
+      logo = await fileToBase64(fileInput);
+    } else if (urlInput) {
+      logo = urlInput;
+    } else if (id) {
+      const oldComp = await db.competicoes.get(Number(id));
+      if (oldComp) logo = oldComp.logo;
+    }
+
+    const compData = { nome, logo };
+    if (id) {
+      await db.competicoes.put({ id: Number(id), ...compData });
+    } else {
+      await db.competicoes.add(compData);
+    }
+
+    fecharModal('modal-comp');
+    e.target.reset();
+    atualizarSelects();
+    renderizarHome();
+    if (window.atualizarGerenciamento) window.atualizarGerenciamento();
+  }
+
+  // Cronologia
+  function renderListaTempEventos() {
+    const container = document.getElementById('lista-temp-eventos');
+    if (!container) return;
+    
+    let html = '<span>• Pontapé Inicial 1\'</span>';
+    eventosTemp.forEach((ev, idx) => {
+      const cleanTipo = ev.tipo.replace(/^[⚽🟥🟨]\s*/, '');
+      const ladoTexto = ev.lado === 'mandante' ? 'Local' : 'Visitante';
+      html += `
+        <div class="flex items-center justify-between bg-appDark/50 px-3 py-1.5 rounded-xl border border-appBorder mt-1.5">
+          <span>• ${ev.minuto} ${ev.jogador} (${cleanTipo}) [${ladoTexto}]</span>
+          <button type="button" onclick="removerEventoTemp(${idx})" class="text-red-400 hover:text-red-300 font-bold ml-2 text-sm">×</button>
+        </div>
+      `;
+    });
+    container.innerHTML = html;
+  }
+
+  function removerEventoTemp(idx) {
+    eventosTemp.splice(idx, 1);
+    renderListaTempEventos();
+  }
+
+  function adicionarEventoLista() {
+    const jog = document.getElementById('input-ev-jogador').value;
+    const min = document.getElementById('input-ev-minuto').value;
+    const tipo = document.getElementById('select-ev-tipo').value;
+    const lado = document.getElementById('select-ev-lado').value;
+
+    if (!jog || !min) return;
+
+    eventosTemp.push({ jogador: jog, minuto: min, tipo: tipo, lado: lado });
+    renderListaTempEventos();
+    document.getElementById('input-ev-jogador').value = '';
+    document.getElementById('input-ev-minuto').value = '';
+  }
+
+  // Salvar Jogo no IndexedDB
+  async function salvarJogo(e) {
+    e.preventDefault();
+    const id = document.getElementById('input-j-id').value;
+
+    // Photos
+    const fotosInput = document.getElementById('input-j-fotos').files;
+    let fotosBase64 = [];
+    if (fotosInput.length > 0) {
+      for (let i = 0; i < Math.min(fotosInput.length, 6); i++) {
+        fotosBase64.push(await fileToBase64(fotosInput[i]));
+      }
+    } else if (id && jogoAtualVisualizado) {
+      fotosBase64 = [...(jogoAtualVisualizado.fotos || [])];
+    }
+
+    // MVP Photo
+    const mvpFotoInput = document.getElementById('input-j-mvp-foto').files[0];
+    let mvpFotoBase64 = '';
+    if (mvpFotoInput) {
+      mvpFotoBase64 = await fileToBase64(mvpFotoInput);
+    } else if (id && jogoAtualVisualizado) {
+      mvpFotoBase64 = jogoAtualVisualizado.mvpFoto || '';
+    }
+
+    const jogoData = {
+      titulo: document.getElementById('input-j-titulo').value,
+      texto: document.getElementById('input-j-texto').value,
+      fotos: fotosBase64,
+      timeMandanteId: Number(document.getElementById('select-j-time-m').value),
+      placarM: document.getElementById('input-j-placar-m').value,
+      timeVisitanteId: Number(document.getElementById('select-j-time-v').value),
+      placarV: document.getElementById('input-j-placar-v').value,
+      mvpNome: document.getElementById('input-j-mvp-nome').value,
+      mvpFoto: mvpFotoBase64,
+      mvpJust: document.getElementById('input-j-mvp-just').value,
+      estadio: document.getElementById('input-j-estadio').value,
+      competicao: document.getElementById('select-j-comp').value,
+      fase: document.getElementById('input-j-fase').value,
+      juiz: document.getElementById('input-j-juiz').value,
+      transmissao: document.getElementById('input-j-transmissao').value,
+      eventos: [...eventosTemp],
+      data: id && jogoAtualVisualizado ? jogoAtualVisualizado.data : new Date()
+    };
+
+    if (id) {
+      await db.jogos.put({ id: Number(id), ...jogoData });
+      jogoAtualVisualizado = { id: Number(id), ...jogoData };
+    } else {
+      await db.jogos.add(jogoData);
+    }
+
+    eventosTemp = [];
+    e.target.reset();
+    document.getElementById('input-j-id').value = '';
+    document.getElementById('lista-temp-eventos').innerHTML = '<span>• Pontapé Inicial 1\'</span>';
+    renderizarHome();
+
+    if (id) {
+      abrirDetalhesJogo(jogoAtualVisualizado);
+    } else {
+      navegarPara('tela-home');
+    }
+  }
+
+  // Salvar Notícia no IndexedDB
+  async function salvarNoticia(e) {
+    e.preventDefault();
+    const id = document.getElementById('input-n-id').value;
+    const fotoInput = document.getElementById('input-n-foto').files[0];
+    
+    let fotoBase64 = '';
+    if (fotoInput) {
+      fotoBase64 = await fileToBase64(fotoInput);
+    } else if (id && noticiaAtualVisualizada) {
+      fotoBase64 = noticiaAtualVisualizada.foto;
+    } else {
+      fotoBase64 = 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=800';
+    }
+
+    const noticiaData = {
+      titulo: document.getElementById('input-n-titulo').value,
+      resumo: document.getElementById('input-n-resumo').value,
+      corpo: document.getElementById('input-n-corpo').value,
+      foto: fotoBase64,
+      timeRelacionadoId: Number(document.getElementById('select-n-time').value),
+      data: id && noticiaAtualVisualizada ? noticiaAtualVisualizada.data : new Date()
+    };
+
+    if (id) {
+      await db.noticias.put({ id: Number(id), ...noticiaData });
+      noticiaAtualVisualizada = { id: Number(id), ...noticiaData };
+    } else {
+      await db.noticias.add(noticiaData);
+    }
+
+    e.target.reset();
+    document.getElementById('input-n-id').value = '';
+    renderizarHome();
+
+    if (id) {
+      abrirDetalheNoticia(noticiaAtualVisualizada);
+    } else {
+      navegarPara('tela-home');
+    }
+  }
+
+  // Renderizar Feed da Tela Inicial
+  async function renderizarHome() {
+    const jogos = await db.jogos.reverse().toArray();
+    const noticias = await db.noticias.reverse().toArray();
+
+    // 1. Jogo em Destaque (Último Jogo)
+    if (jogos.length > 0) {
+      const jDestaque = jogos[0];
+      const timeM = await db.times.get(jDestaque.timeMandanteId);
+      const timeV = await db.times.get(jDestaque.timeVisitanteId);
+
+      jogoAtualVisualizado = jDestaque;
+      document.getElementById('home-destaque-img').src = jDestaque.fotos[0] || 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800';
+      document.getElementById('home-mandante-logo').src = timeM?.escudo || '';
+      document.getElementById('home-visitante-logo').src = timeV?.escudo || '';
+      document.getElementById('home-placar-m').innerText = jDestaque.placarM;
+      document.getElementById('home-placar-v').innerText = jDestaque.placarV;
+      document.getElementById('home-destaque-titulo').innerText = jDestaque.titulo;
+      document.getElementById('home-destaque-sub').innerText = jDestaque.texto;
+    }
+
+    // 2. Lista Mais Jogos
+    const listaJogosContainer = document.getElementById('lista-mais-jogos');
+    listaJogosContainer.innerHTML = '';
+    for (const j of jogos.slice(1)) {
+      const tm = await db.times.get(j.timeMandanteId);
+      const tv = await db.times.get(j.timeVisitanteId);
+
+      listaJogosContainer.innerHTML += `
+        <div onclick="abrirDetalhesJogoPorId(${j.id})" class="bg-appCard border border-appBorder rounded-2xl overflow-hidden flex items-center justify-between cursor-pointer hover:border-white/20 transition">
+          <div class="p-4 flex-1">
+            <div class="flex items-center gap-2 mb-2">
+              <img src="${tm?.escudo}" class="w-5 h-5 object-contain" />
+              <span class="text-sm font-black">${j.placarM} x ${j.placarV}</span>
+              <img src="${tv?.escudo}" class="w-5 h-5 object-contain" />
+            </div>
+            <h3 class="text-base font-black italic tracking-tight uppercase">${j.titulo}</h3>
+            <p class="text-xs text-gray-400 line-clamp-1 mt-0.5">${j.texto}</p>
+          </div>
+          <div class="w-28 h-24 bg-neutral-800 flex-shrink-0">
+            <img src="${j.fotos[0] || ''}" class="w-full h-full object-cover" />
+          </div>
+        </div>
+      `;
+    }
+
+    // 3. Notícias de Última Hora
+    const carrosselNoticias = document.getElementById('carrossel-noticias');
+    carrosselNoticias.innerHTML = '';
+    for (const n of noticias) {
+      carrosselNoticias.innerHTML += `
+        <div onclick="abrirDetalheNoticiaPorId(${n.id})" class="min-w-[240px] max-w-[240px] bg-appCard border border-appBorder rounded-2xl overflow-hidden cursor-pointer flex-shrink-0">
+          <div class="w-full h-32 bg-neutral-800">
+            <img src="${n.foto}" class="w-full h-full object-cover" />
+          </div>
+          <div class="p-3">
+            <h4 class="text-sm font-black italic uppercase line-clamp-1">${n.titulo}</h4>
+            <p class="text-[11px] text-gray-400 line-clamp-2 mt-1 font-medium">${n.resumo}</p>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  function abrirDetalheJogoAtual() {
+    if (jogoAtualVisualizado) abrirDetalhesJogo(jogoAtualVisualizado);
+  }
+
+  async function abrirDetalhesJogoPorId(id) {
+    const jogo = await db.jogos.get(Number(id));
+    if (jogo) abrirDetalhesJogo(jogo);
+  }
+
+  async function abrirDetalheNoticiaPorId(id) {
+    const noticia = await db.noticias.get(Number(id));
+    if (noticia) abrirDetalheNoticia(noticia);
+  }
+
+  // Abrir Tela de Detalhes da Partida
+  async function abrirDetalhesJogo(jogo) {
+    jogoAtualVisualizado = jogo;
+    const timeM = await db.times.get(jogo.timeMandanteId);
+    const timeV = await db.times.get(jogo.timeVisitanteId);
+
+    // Gradiente dinâmico com cor oficial do mandante
+    document.getElementById('jogo-header-bg').style.background = 
+      `linear-gradient(180deg, ${timeM?.cor || '#1c1c1e'} 0%, rgba(0,0,0,1) 100%)`;
+
+    document.getElementById('jogo-m-logo').src = timeM?.escudo || '';
+    document.getElementById('jogo-v-logo').src = timeV?.escudo || '';
+    document.getElementById('jogo-m-placar').innerText = jogo.placarM;
+    document.getElementById('jogo-v-placar').innerText = jogo.placarV;
+
+    // Carrossel de fotos
+    const fotosContainer = document.getElementById('jogo-fotos-container');
+    fotosContainer.innerHTML = (jogo.fotos || []).map(f => `
+      <div class="min-w-full h-full snap-center">
+        <img src="${f}" class="w-full h-full object-cover" />
+      </div>
+    `).join('');
+
+    document.getElementById('jogo-titulo').innerText = jogo.titulo;
+    document.getElementById('jogo-texto').innerText = jogo.texto;
+
+    // MVP & Efeito de Camadas
+    if (jogo.mvpNome) {
+      document.getElementById('secao-mvp').classList.remove('hidden');
+      document.getElementById('jogo-mvp-nome-bg').innerText = jogo.mvpNome;
+      document.getElementById('jogo-mvp-foto').src = jogo.mvpFoto || '';
+      document.getElementById('jogo-mvp-just').innerText = jogo.mvpJust || '';
+    } else {
+      document.getElementById('secao-mvp').classList.add('hidden');
+    }
+
+    // Helper to get clean SVG icons instead of emojis
+    function getEventIcon(tipo) {
+      const t = tipo.toLowerCase();
+      if (t.includes('gol') || t.includes('⚽')) {
+        return `<svg class="w-4 h-4 inline-block text-white align-middle mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m12 12-4 3v4.5"/><path d="m12 12 4 3v4.5"/><path d="M12 12V6.5L8.5 4"/><path d="m12 6.5 3.5-2.5"/><path d="M12 12 7.5 9.5 3 10"/><path d="M12 12h5.5l4.5-1"/></svg> Gol`;
+      } else if (t.includes('vermelho') || t.includes('🟥')) {
+        return `<span class="inline-block w-2.5 h-3.5 rounded bg-white border border-neutral-600 align-middle mr-1" title="Cartão Vermelho"></span> Vermelho`;
+      } else if (t.includes('amarelo') || t.includes('🟨')) {
+        return `<span class="inline-block w-2.5 h-3.5 rounded bg-white border border-neutral-600 align-middle mr-1" title="Cartão Amarelo"></span> Amarelo`;
+      }
+      return tipo;
+    }
+
+    // Cronologia (Mandante à esquerda, Visitante à direita)
+    const timelineEl = document.getElementById('jogo-timeline');
+    timelineEl.innerHTML = '';
+    (jogo.eventos || []).forEach(ev => {
+      const iconAndLabel = getEventIcon(ev.tipo);
+      if (ev.lado === 'mandante') {
+        timelineEl.innerHTML += `<div class="text-left text-white">${ev.jogador} ${ev.minuto} <span class="text-xs text-gray-400">(${iconAndLabel})</span></div>`;
+      } else {
+        timelineEl.innerHTML += `<div class="text-right text-white"><span class="text-xs text-gray-400">(${iconAndLabel})</span> ${ev.minuto} ${ev.jogador}</div>`;
+      }
+    });
+
+    // Ficha Técnica
+    document.getElementById('jogo-info-estadio').innerText = jogo.estadio || '---';
+    document.getElementById('jogo-info-comp').innerText = jogo.competicao || '---';
+    document.getElementById('jogo-info-fase').innerText = jogo.fase || '---';
+    document.getElementById('jogo-info-juiz').innerText = jogo.juiz || '---';
+    document.getElementById('jogo-info-transmissao').innerText = jogo.transmissao || '---';
+
+    navegarPara('tela-jogo');
+  }
+
+  // Abrir Tela de Notícia
+  let noticiaJogoRelacionadoCache = null;
+  let noticiaAtualVisualizada = null;
+  async function abrirDetalheNoticia(noticia) {
+    noticiaAtualVisualizada = noticia;
+    document.getElementById('noticia-detalhe-titulo').innerText = noticia.titulo;
+    document.getElementById('noticia-detalhe-texto').innerText = noticia.corpo;
+    document.getElementById('noticia-foto-capa').src = noticia.foto;
+
+    // Buscar último jogo do time relacionado em memória para evitar limitações do Dexie com or() e reverse()
+    const todosJogos = await db.jogos.toArray();
+    const jogosRelacionados = todosJogos.filter(j => 
+      j.timeMandanteId === noticia.timeRelacionadoId || 
+      j.timeVisitanteId === noticia.timeRelacionadoId
+    );
+    jogosRelacionados.sort((a, b) => b.id - a.id);
+    const ultimoJogo = jogosRelacionados[0];
+
+    const cardRel = document.getElementById('noticia-jogo-relacionado');
+    if (ultimoJogo) {
+      noticiaJogoRelacionadoCache = ultimoJogo;
+      const tm = await db.times.get(ultimoJogo.timeMandanteId);
+      const tv = await db.times.get(ultimoJogo.timeVisitanteId);
+
+      document.getElementById('noticia-rel-m-logo').src = tm?.escudo || '';
+      document.getElementById('noticia-rel-v-logo').src = tv?.escudo || '';
+      document.getElementById('noticia-rel-placar').innerText = `${ultimoJogo.placarM} x ${ultimoJogo.placarV}`;
+      document.getElementById('noticia-rel-titulo').innerText = ultimoJogo.titulo;
+      cardRel.classList.remove('hidden');
+    } else {
+      cardRel.classList.add('hidden');
+    }
+
+    navegarPara('tela-noticia');
+  }
+
+  function abrirJogoRelacionadoDaNoticia() {
+    if (noticiaJogoRelacionadoCache) abrirDetalhesJogo(noticiaJogoRelacionadoCache);
+  }
+
+  // Salvar Card como Imagem na Galeria
+  function salvarCardImagem(elementId) {
+    const el = document.getElementById(elementId);
+    html2canvas(el, { backgroundColor: '#000000', scale: 2 }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = `card-jogo-${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+  }
+
+  // Backup JSON
+  async function exportarBackup() {
+    const data = {
+      times: await db.times.toArray(),
+      competicoes: await db.competicoes.toArray(),
+      jogos: await db.jogos.toArray(),
+      noticias: await db.noticias.toArray()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fifa-carreira-backup-${Date.now()}.json`;
+    a.click();
+  }
+
+  async function importarBackup(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        await db.times.clear();
+        await db.competicoes.clear();
+        await db.jogos.clear();
+        await db.noticias.clear();
+        await db.times.bulkAdd(data.times || []);
+        await db.competicoes.bulkAdd(data.competicoes || []);
+        await db.jogos.bulkAdd(data.jogos || []);
+        await db.noticias.bulkAdd(data.noticias || []);
+        alert('Backup restaurado com sucesso!');
+        atualizarSelects();
+        renderizarHome();
+      } catch (err) {
+        alert('Erro ao importar backup.');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // Funções de Gerenciamento de Times e Competições
+  function abrirGerenciar() {
+    navegarPara('tela-gerenciar');
+    alternarTabGerenciar('times');
+  }
+
+  function alternarTabGerenciar(tab) {
+    const btnTimes = document.getElementById('tab-gerenciar-times');
+    const btnComps = document.getElementById('tab-gerenciar-comps');
+    const listTimes = document.getElementById('gerenciar-times-list');
+    const listComps = document.getElementById('gerenciar-comps-list');
+
+    if (!btnTimes || !btnComps || !listTimes || !listComps) return;
+
+    if (tab === 'times') {
+      btnTimes.className = "py-3 rounded-xl font-black italic text-xs uppercase bg-white text-black transition";
+      btnComps.className = "py-3 rounded-xl font-black italic text-xs uppercase text-gray-400 transition";
+      listTimes.classList.remove('hidden');
+      listComps.classList.add('hidden');
+    } else {
+      btnComps.className = "py-3 rounded-xl font-black italic text-xs uppercase bg-white text-black transition";
+      btnTimes.className = "py-3 rounded-xl font-black italic text-xs uppercase text-gray-400 transition";
+      listComps.classList.remove('hidden');
+      listTimes.classList.add('hidden');
+    }
+    atualizarListasGerenciar();
+  }
+
+  async function atualizarListasGerenciar() {
+    const times = await db.times.toArray();
+    const comps = await db.competicoes.toArray();
+
+    const listTimes = document.getElementById('gerenciar-times-list');
+    if (listTimes) {
+      listTimes.innerHTML = times.map(t => `
+        <div class="bg-appCard border border-appBorder rounded-2xl p-4 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <img src="${t.escudo}" class="w-10 h-10 object-contain rounded-lg bg-neutral-900" style="background-color: ${t.cor}33" />
+            <div>
+              <h4 class="font-black text-sm text-white">${t.nome}</h4>
+              <span class="text-xs text-gray-400">${t.pais}</span>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="editarTime(${t.id})" class="p-2 bg-appInput hover:bg-neutral-800 rounded-xl transition text-white" title="Editar">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-2.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+            </button>
+            <button onclick="excluirTime(${t.id})" class="p-2 bg-appInput hover:bg-red-950 hover:text-red-400 rounded-xl transition text-gray-400" title="Excluir">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          </div>
+        </div>
+      `).join('') || '<div class="text-center text-xs text-gray-500 py-6">Nenhum time cadastrado</div>';
+    }
+
+    const listComps = document.getElementById('gerenciar-comps-list');
+    if (listComps) {
+      listComps.innerHTML = comps.map(c => `
+        <div class="bg-appCard border border-appBorder rounded-2xl p-4 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            ${c.logo ? `<img src="${c.logo}" class="w-10 h-10 object-contain rounded-lg bg-neutral-900" />` : `<div class="w-10 h-10 bg-neutral-800 rounded-lg flex items-center justify-center font-bold text-xs text-gray-400">🏆</div>`}
+            <div>
+              <h4 class="font-black text-sm text-white">${c.nome}</h4>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="editarComp(${c.id})" class="p-2 bg-appInput hover:bg-neutral-800 rounded-xl transition text-white" title="Editar">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-2.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+            </button>
+            <button onclick="excluirComp(${c.id})" class="p-2 bg-appInput hover:bg-red-950 hover:text-red-400 rounded-xl transition text-gray-400" title="Excluir">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          </div>
+        </div>
+      `).join('') || '<div class="text-center text-xs text-gray-500 py-6">Nenhuma competição cadastrada</div>';
+    }
+  }
+
+  window.atualizarGerenciamento = atualizarListasGerenciar;
+
+  async function editarTime(id) {
+    const time = await db.times.get(id);
+    if (!time) return;
+    
+    document.getElementById('modal-t-id').value = time.id;
+    document.getElementById('modal-t-nome').value = time.nome;
+    document.getElementById('modal-t-escudo-url').value = time.escudo.startsWith('data:') ? '' : time.escudo;
+    document.getElementById('modal-t-escudo-file').value = '';
+    document.getElementById('modal-t-cor').value = time.cor;
+    document.getElementById('modal-t-pais').value = time.pais;
+    
+    const modalForm = document.querySelector('#modal-time form');
+    const submitBtn = modalForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.innerText = "Salvar Alterações";
+    
+    const titleEl = document.querySelector('#modal-time h3');
+    if (titleEl) titleEl.innerText = "Editar Time";
+
+    document.getElementById('modal-time').classList.remove('hidden');
+  }
+
+  async function excluirTime(id) {
+    const time = await db.times.get(id);
+    if (!time) return;
+    if (confirm(`Tem certeza que deseja excluir o time "${time.nome}"? Jogos vinculados a este time podem não exibir o escudo corretamente.`)) {
+      await db.times.delete(id);
+      atualizarSelects();
+      atualizarListasGerenciar();
+      renderizarHome();
+    }
+  }
+
+  async function editarComp(id) {
+    const comp = await db.competicoes.get(id);
+    if (!comp) return;
+
+    document.getElementById('modal-c-id').value = comp.id;
+    document.getElementById('modal-c-nome').value = comp.nome;
+    document.getElementById('modal-c-logo-url').value = comp.logo.startsWith('data:') ? '' : comp.logo;
+    document.getElementById('modal-c-logo-file').value = '';
+
+    const modalForm = document.querySelector('#modal-comp form');
+    const submitBtn = modalForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.innerText = "Salvar Alterações";
+
+    const titleEl = document.querySelector('#modal-comp h3');
+    if (titleEl) titleEl.innerText = "Editar Competição";
+
+    document.getElementById('modal-comp').classList.remove('hidden');
+  }
+
+  async function excluirComp(id) {
+    const comp = await db.competicoes.get(id);
+    if (!comp) return;
+    if (confirm(`Tem certeza que deseja excluir a competição "${comp.nome}"?`)) {
+      await db.competicoes.delete(id);
+      atualizarSelects();
+      atualizarListasGerenciar();
+      renderizarHome();
+    }
+  }
+
+  // Notícias: Editar e Apagar
+  async function excluirNoticiaAtual() {
+    if (!noticiaAtualVisualizada) return;
+    if (confirm(`Tem certeza que deseja excluir a notícia "${noticiaAtualVisualizada.titulo}"?`)) {
+      await db.noticias.delete(noticiaAtualVisualizada.id);
+      noticiaAtualVisualizada = null;
+      renderizarHome();
+      navegarPara('tela-home');
+    }
+  }
+
+  async function editarNoticiaAtual() {
+    if (!noticiaAtualVisualizada) return;
+
+    const n = noticiaAtualVisualizada;
+    
+    document.getElementById('input-n-id').value = n.id;
+    document.getElementById('input-n-titulo').value = n.titulo;
+    document.getElementById('input-n-resumo').value = n.resumo;
+    document.getElementById('input-n-corpo').value = n.corpo;
+    document.getElementById('select-n-time').value = n.timeRelacionadoId;
+    document.getElementById('input-n-foto').value = '';
+
+    document.getElementById('criador-titulo').innerText = "Editar Notícia";
+    
+    const tabsContainer = document.querySelector('#tela-criador .bg-appInput');
+    if (tabsContainer) tabsContainer.classList.add('hidden');
+    
+    document.getElementById('form-jogo').classList.add('hidden');
+    document.getElementById('form-noticia').classList.remove('hidden');
+    document.getElementById('form-noticia').classList.add('flex');
+
+    navegarPara('tela-criador');
+  }
+
+  // Jogos: Editar e Apagar
+  async function excluirJogoAtual() {
+    if (!jogoAtualVisualizado) return;
+    if (confirm(`Tem certeza que deseja excluir o jogo "${jogoAtualVisualizado.titulo}"?`)) {
+      await db.jogos.delete(jogoAtualVisualizado.id);
+      jogoAtualVisualizado = null;
+      renderizarHome();
+      navegarPara('tela-home');
+    }
+  }
+
+  async function editarJogoAtual() {
+    if (!jogoAtualVisualizado) return;
+
+    const j = jogoAtualVisualizado;
+
+    document.getElementById('input-j-id').value = j.id;
+    document.getElementById('input-j-titulo').value = j.titulo;
+    document.getElementById('input-j-texto').value = j.texto;
+    document.getElementById('select-j-time-m').value = j.timeMandanteId;
+    document.getElementById('input-j-placar-m').value = j.placarM;
+    document.getElementById('select-j-time-v').value = j.timeVisitanteId;
+    document.getElementById('input-j-placar-v').value = j.placarV;
+    document.getElementById('input-j-mvp-nome').value = j.mvpNome || '';
+    document.getElementById('input-j-mvp-just').value = j.mvpJust || '';
+    document.getElementById('input-j-estadio').value = j.estadio || '';
+    document.getElementById('select-j-comp').value = j.competicao || '';
+    document.getElementById('input-j-fase').value = j.fase || '';
+    document.getElementById('input-j-juiz').value = j.juiz || '';
+    document.getElementById('input-j-transmissao').value = j.transmissao || '';
+
+    eventosTemp = [...(j.eventos || [])];
+    renderListaTempEventos();
+
+    document.getElementById('criador-titulo').innerText = "Editar Jogo";
+    
+    const tabsContainer = document.querySelector('#tela-criador .bg-appInput');
+    if (tabsContainer) tabsContainer.classList.add('hidden');
+
+    document.getElementById('form-noticia').classList.add('hidden');
+    document.getElementById('form-jogo').classList.remove('hidden');
+
+    navegarPara('tela-criador');
+  }
+
+  // Inicialização ao Carregar a Página
+  window.onload = () => {
+    seedDatabase();
+    history.replaceState({ tela: 'tela-home' }, '', '#tela-home');
+  };
+
+  window.addEventListener('popstate', (event) => {
+    if (event.state && event.state.tela) {
+      navegarPara(event.state.tela, false);
+    } else {
+      navegarPara('tela-home', false);
+    }
+  });
+</script>
+
+</body>
+</html>
